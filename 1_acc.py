@@ -4,6 +4,8 @@ import re
 from pprint import pprint
 import pandas as pd
 from functools import reduce
+import itertools
+import sqlite3
 
 class ParseAcc:
     def __init__(self):
@@ -51,7 +53,7 @@ class ParseAcc:
         print(f'this is items len {len(L_items)}')
         print(f'this is sum of items  {sumL_counts}')
         print(f'this is the list of ranges {L_counts}')
-        # the last item of the L_counts list is 24, when should be 23 - problem needs to be addressed
+        # the last item of the L_counts list is 24, when should be 23 
         print(f'this is the length of ranges list {len(L_counts)}')
         
         self.wb.Close(True)
@@ -59,8 +61,33 @@ class ParseAcc:
         
         # after mols_scratch, items and counts lists are collected, L_mols should be populated by
         # mulitplying each mols_scratch element by counts
-        L_mols = [((i + '**').split('**') * j).filter('', L_mols) for i, j in (zip(L_mols_scratch, L_counts))]
-        print(L_mols)
+        L_mols = [(i + '**').split('**') * j for i, j in (zip(L_mols_scratch, L_counts))]
+        L_mols = list(itertools.chain.from_iterable(L_mols))
+        L_mols = list(filter(None, L_mols))
+        print(len(L_mols))
+        
+        # building dataframe
+        data = pd.DataFrame(zip(L_mols, L_items), columns =['Responsible', 'Item'])
+        print(data.iloc[:-1, :])
+        print(data.describe())
+        
+        # building database
+        db = sqlite3.connect('accountance.db')
+        cursor = db.cursor()
+    
+        cursor.execute("DROP TABLE IF EXISTS accountance;")
+        cursor.execute("""
+                        CREATE TABLE IF NOT EXISTS accountance(
+                        Responsible text,
+                        Item text)
+                        """)
+        cursor.executemany("INSERT INTO accountance VALUES (?, ?)", zip(L_mols, L_items))
+        print(len(cursor.execute("SELECT * FROM accountance").fetchall()))
+        
+        # refreshing database
+        db.commit()
+        # closing database
+        db.close()
 
 parseAcc = ParseAcc()
 transfer = parseAcc.transCol()
